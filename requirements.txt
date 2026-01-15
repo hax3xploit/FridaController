@@ -1,4 +1,5 @@
-flask 
-flask-socketio 
-eventlet 
-frida 
+flask
+flask-socketio
+eventlet
+frida
+Pillow
