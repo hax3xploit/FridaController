@@ -1,0 +1,716 @@
+<!-- templates/layout.html -->
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Frida GUI Controller</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a'
+            },
+            dark: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              800: '#1e293b',
+              900: '#0f172a',
+              950: '#020617'
+            }
+          },
+          fontFamily: {
+            'mono': ['JetBrains Mono', 'Monaco', 'Consolas', 'monospace']
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.3s ease-in-out',
+            'slide-up': 'slideUp 0.3s ease-out',
+            'pulse-slow': 'pulse 3s infinite'
+          }
+        }
+      }
+    }
+
+
+  window.__dashboardJsLoaded ??= false;
+
+</script>
+
+<link rel="stylesheet" href="/static/css/style.css" />
+  
+<style>
+/* ===== Theme tokens (dark-first) ===== */
+:root {
+  --toast-bg: #0f172a;            /* slate-900 */
+  --toast-fg: #e5e7eb;            /* gray-200 */
+  --toast-muted: #94a3b8;         /* slate-400 */
+  --toast-border: #1f2937;        /* gray-800 */
+  --toast-shadow: rgba(0,0,0,0.4);
+
+  --info-bg: #1e3a8a;   /* blue-900 */
+  --info-border: #3b82f6;
+  --info-fg: #dbeafe;
+
+  --success-bg: #064e3b; /* emerald-900 */
+  --success-border: #22c55e;
+  --success-fg: #d1fae5;
+
+  --warn-bg: #78350f;   /* amber-900 */
+  --warn-border: #f59e0b;
+  --warn-fg: #fde68a;
+
+  --error-bg: #7f1d1d;  /* red-900 */
+  --error-border: #ef4444;
+  --error-fg: #fecaca;
+}
+
+/* Optional light mode (if you add .light on <html> or body) */
+.light :root, .light {
+  --toast-bg: #ffffff;
+  --toast-fg: #0f172a;
+  --toast-muted: #475569;
+  --toast-border: #e5e7eb;
+  --toast-shadow: rgba(2, 6, 23, 0.08);
+
+  --info-bg: #eff6ff;
+  --info-border: #2563eb;
+  --info-fg: #1e3a8a;
+
+  --success-bg: #ecfdf5;
+  --success-border: #16a34a;
+  --success-fg: #065f46;
+
+  --warn-bg: #fffbeb;
+  --warn-border: #d97706;
+  --warn-fg: #78350f;
+
+  --error-bg: #fef2f2;
+  --error-border: #dc2626;
+  --error-fg: #7f1d1d;
+}
+
+/* ===== Container ===== */
+/* container */
+#toastContainer{
+  position:fixed; top:16px; right:16px; z-index:10000;
+  display:flex; flex-direction:column; gap:12px; pointer-events:none;
+}
+#toastContainer .toast-item{ pointer-events:auto; }
+
+/* base toast – frosted card */
+.toast-item{
+  position:relative;
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  background: linear-gradient(145deg, rgba(13,19,33,.58), rgba(21,30,46,.72));
+  border-radius:14px;
+  padding:14px 16px 14px 18px;
+  min-width:260px; max-width:420px;
+  color:#e8eef8;
+  box-shadow:
+    0 12px 28px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.06);
+  overflow:hidden;
+  transform: translateX(14px); opacity:0;
+  animation:toastIn .22s ease-out forwards;
+}
+
+/* subtle inner hairline to define edges on dark backgrounds */
+.toast-item::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  border-radius:inherit;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+}
+
+/* gradient glow bar (replace the harsh border-left) */
+.toast-item::before{
+  content:""; position:absolute; left:8px; top:8px; bottom:8px; width:3px;
+  border-radius:999px; filter: blur(.2px);
+  opacity:.95;
+}
+
+/* layout */
+.toast-body{ display:flex; align-items:center; gap:10px; }
+
+.toast-message {
+  flex: 1;
+  font-size: 13px;          /* smaller */
+  font-weight: 400;         /* normal instead of bold */
+  letter-spacing: 0.1px;    /* subtle tracking */
+  line-height: 1.4;         /* comfortable */
+  color: inherit;           /* keeps variant color */
+}
+
+/* icon chip */
+.toast-icon{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:28px; height:28px; border-radius:999px;
+  background: rgba(255,255,255,.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+.toast-icon-svg{ width:18px; height:18px; stroke:currentColor; stroke-width:2; fill:none; }
+
+/* close button */
+.toast-close{
+  appearance:none; border:0; background:transparent; cursor:pointer;
+  color:#a7b3c6; padding:4px; border-radius:8px; transition:all .15s ease;
+}
+.toast-close:hover{ color:#f0f6ff; background:rgba(255,255,255,.08); }
+.toast-close-svg{ width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; }
+
+/* progress bar (soft, glassy) */
+.toast-bar{
+  position:relative; height:3px; width:100%;
+  background: linear-gradient(90deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
+  transform-origin:left; transition: width linear; width:100%;
+}
+
+/* variants – set the glow bar + subtle tint */
+.toast-info{
+  color:#e7f0ff;
+  background: linear-gradient(145deg, rgba(16,26,46,.55), rgba(24,38,64,.72));
+}
+.toast-info::before{
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  box-shadow: 0 0 22px rgba(59,130,246,.35);
+}
+
+.toast-success{
+  color:#ddfbe9;
+  background: linear-gradient(145deg, rgba(10,28,22,.55), rgba(12,40,29,.72));
+}
+.toast-success::before{
+  background: linear-gradient(180deg, #34d399, #16a34a);
+  box-shadow: 0 0 22px rgba(34,197,94,.35);
+}
+
+.toast-warn{
+  color:#fff3c4;
+  background: linear-gradient(145deg, rgba(44,31,8,.55), rgba(55,36,8,.72));
+}
+.toast-warn::before{
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+  box-shadow: 0 0 22px rgba(245,158,11,.35);
+}
+
+.toast-error{
+  color:#ffe0e0;
+  background: linear-gradient(145deg, rgba(48,14,14,.55), rgba(62,16,16,.72));
+}
+.toast-error::before{
+  background: linear-gradient(180deg, #f87171, #dc2626);
+  box-shadow: 0 0 22px rgba(239,68,68,.35);
+}
+
+/* motion */
+@keyframes toastIn{ from{transform:translateX(14px);opacity:0} to{transform:translateX(0);opacity:1}}
+.toast-exit{ animation:toastOut .18s ease-in forwards; }
+@keyframes toastOut{ from{transform:translateX(0);opacity:1} to{transform:translateX(14px);opacity:0} }
+
+
+/* Respect your editor/overlay rules */
+#editor { position: relative !important; z-index: 100 !important; isolation: isolate; }
+#editor, #editor * { pointer-events: auto !important; user-select: text !important; }
+.monaco-editor, .monaco-editor * { pointer-events: auto !important; user-select: text !important; }
+
+.glass-effect::before,
+.glass-effect::after { pointer-events: none !important; }
+
+.glass-effect {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .script-item {
+            transition: all 0.2s ease;
+        }
+        .script-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        /* Custom scrollbar */
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 6px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 3px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background: rgba(71, 85, 105, 0.5);
+            border-radius: 3px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+        
+</style>
+
+
+
+
+</head>
+<body class="bg-gradient-to-br from-dark-950 via-dark-900 to-slate-900 text-white min-h-screen font-sans">
+  <!-- Animated background -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none">
+    <div class="absolute -top-40 -right-40 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl animate-pulse-slow"></div>
+    <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl animate-pulse-slow" style="animation-delay: 1s;"></div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="relative z-10 glass-effect border-b border-slate-700/50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+              Frida Controller
+            </h1>
+            <p class="text-xs text-slate-400">Dynamic Instrumentation Platform</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-6">
+        <ul class="flex items-center space-x-1">
+          <li>
+            <a href="/" class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white/5 hover:text-primary-400 group">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m8 15 4-4 4 4"></path>
+              </svg>
+              <span class="text-sm font-medium">Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a href="/scripts" class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white/5 hover:text-primary-400 group">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+              </svg>
+              <span class="text-sm font-medium">Scripts</span>
+            </a>
+          </li>
+          <li>
+            <a href="/screen" class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white/5 hover:text-primary-400 group">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+              </svg>
+              <span class="text-sm font-medium">Screen Viewer</span>
+            </a>
+          </li>
+        </ul>
+
+        <!-- Settings Button -->
+        <button onclick="openSettingsModal()"
+                class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white/5 hover:text-primary-400 group">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8v4l3 3m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="text-sm font-medium">Settings</span>
+        </button>
+
+        <!-- Status indicator -->
+        <div id="connectionIndicator" class="flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-600/20 border border-slate-600 transition-all duration-300">
+          <div id="connectionDot" class="w-2 h-2 bg-slate-400 rounded-full animate-pulse"></div>
+          <span id="connectionText" class="text-xs font-medium">Checking...</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="relative z-10 max-w-7xl mx-auto px-6 py-8">
+    <div class="animate-fade-in">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <!-- Toast notifications -->
+  <div id="toastContainer" class="fixed top-6 right-6 space-y-4 z-[9999] pointer-events-none"></div>
+
+
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-dark-900 w-full max-w-md rounded-xl shadow-xl p-6 border border-slate-700 text-white animate-fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold">⚙️ Settings</h2>
+        <button onclick="document.getElementById('settingsModal').classList.add('hidden')"
+                class="text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <label class="block mb-1">
+        <span class="text-sm text-slate-300">Frida Server Path</span>
+        <input id="fridaPathInput" type="text"
+               placeholder="/data/local/tmp/frida-server"
+               class="w-full mt-2 p-3 bg-dark-800 border border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+      </label>
+
+      <div class="text-xs mt-2">
+          <p id="fridaProcessLabel" class="text-sm text-slate-400 mt-1 pl-1">Loading process info...</p>
+      </div>
+
+      <div class="flex flex-col gap-2 mt-6">
+        <button id="startFridaBtn" onclick="saveFridaPath()"
+          class="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold shadow transition-all">
+          🚀 Start Frida Server
+        </button>
+
+        <button id="stopFridaBtn" onclick="stopFrida()"
+                class="w-full px-4 py-2 rounded-lg bg-slate-600 text-white font-semibold shadow transition-all opacity-50 cursor-not-allowed"
+                disabled>
+          🛑 Stop Frida Server
+        </button>
+      </div>
+
+      <!-- Proxy Settings Section -->
+      <div class="mt-6 pt-6 border-t border-slate-700">
+        <h3 class="text-sm font-semibold text-slate-300 mb-3">🌐 HTTP Proxy Settings</h3>
+
+        <div class="flex gap-2 mb-3">
+          <input id="proxyHostInput" type="text"
+                 placeholder="192.168.1.91"
+                 class="flex-1 p-3 bg-dark-800 border border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+          <input id="proxyPortInput" type="text"
+                 placeholder="8082"
+                 class="w-24 p-3 bg-dark-800 border border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+        </div>
+
+        <p id="proxyStatusLabel" class="text-xs text-slate-400 mb-3 pl-1">Proxy: Not configured</p>
+
+        <div class="flex gap-2">
+          <button id="proxyOnBtn" onclick="setProxy(true)"
+                  class="flex-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow transition-all">
+            ✅ Enable Proxy
+          </button>
+          <button id="proxyOffBtn" onclick="setProxy(false)"
+                  class="flex-1 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold shadow transition-all">
+            ❌ Disable Proxy
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+
+
+    async function saveFridaPath() {
+      const pathInput = document.getElementById("fridaPathInput");
+      const path = pathInput?.value?.trim();
+      const btn = document.getElementById("startFridaBtn");
+
+      if (!path) {
+        showToast("Please enter a valid Frida server path.", "warn");
+        return;
+      }
+
+      // ⏳ Show loading state
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-pulse">🚀 Starting...</span>`;
+
+      try {
+        const res = await fetch("/api/start-frida", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path }),
+        });
+
+        const data = await res.json();
+
+        if (data.status === "ok") {
+          showToast(data.message, "success");
+          await new Promise(r => setTimeout(r, 1500));
+          loadFridaProcessLabel();
+        } else {
+          showToast(data.message || "Failed to start Frida server", "error");
+        }
+      } catch (err) {
+        console.error("Start Frida error:", err);
+        showToast("Error starting Frida server", "error");
+      }
+
+      // ✅ Restore button state
+      btn.disabled = false;
+      btn.innerHTML = `🚀 Start Frida Server`;
+    }
+
+
+    async function stopFrida() {
+      const btn = document.getElementById("stopFridaBtn");
+      const label = document.getElementById('fridaProcessLabel');
+
+      // Don't proceed if already disabled (shouldn't happen, but safety check)
+      if (btn.disabled) return;
+
+      // ⏳ Show loading state
+      const originalHTML = btn.innerHTML;
+      const originalBg = btn.classList.contains('bg-red-600') ? 'bg-red-600' : 'bg-slate-600';
+      
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-pulse">🛑 Stopping...</span>`;
+      btn.classList.remove('bg-red-600', 'bg-slate-600');
+      btn.classList.add('bg-amber-600');
+
+      try {
+        const res = await fetch("/api/stop-frida", {
+          method: "POST",
+        });
+        const data = await res.json();
+
+        if (data.status === "ok") {
+          showToast(data.message, "success");
+
+          if (label) {
+            label.textContent = `❌ No running process detected`;
+            label.classList.remove('text-green-400');
+            label.classList.add('text-red-400');
+          }
+
+          // Keep button disabled after successful stop
+          btn.innerHTML = `🛑 Stopped`;
+          btn.classList.remove('bg-amber-600');
+          btn.classList.add('bg-slate-600');
+          btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+        } else {
+          showToast(data.message || "Failed to stop Frida server", "error");
+          // Restore button on failure
+          restoreStopButton(btn, originalHTML, originalBg);
+        }
+      } catch (err) {
+        console.error("Stop Frida error:", err);
+        showToast("Error stopping Frida server", "error");
+        // Restore button on error
+        restoreStopButton(btn, originalHTML, originalBg);
+      }
+    }
+
+    // Helper function to restore button state
+    function restoreStopButton(btn, html, bgClass) {
+      btn.disabled = false;
+      btn.innerHTML = html;
+      btn.classList.remove('bg-amber-600', 'bg-slate-600');
+      btn.classList.add(bgClass);
+      btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+
+
+
+
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('hidden');
+      loadFridaProcessLabel();
+    }
+
+    
+
+    async function loadSavedFridaPath() {
+      try {
+        const res = await fetch('/api/frida/get-path');
+        const data = await res.json();
+        document.getElementById('fridaPathInput').value = data.path || '/data/local/tmp/frida-server';
+      } catch (err) {
+        console.error("Failed to load saved path:", err);
+        document.getElementById('fridaPathInput').value = '/data/local/tmp/frida-server';
+      }
+    }
+
+
+    async function loadFridaProcessLabel() {
+      const label = document.getElementById('fridaProcessLabel');
+      const stopBtn = document.getElementById('stopFridaBtn');
+      
+      if (!label) return;
+
+      try {
+        const res = await fetch('/api/frida/status');
+        const data = await res.json();
+
+        if (data.running && data.process) {
+          label.textContent = `🔍 Detected running process: ${data.process}`;
+          label.classList.remove('text-red-400', 'text-slate-400');
+          label.classList.add('text-green-400');
+          
+          // Enable stop button if Frida is running
+          if (stopBtn) {
+            stopBtn.disabled = false;
+            stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            stopBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+          }
+        } else {
+          label.textContent = `❌ No running process detected`;
+          label.classList.remove('text-green-400', 'text-slate-400');
+          label.classList.add('text-red-400');
+          
+          // Disable stop button if Frida is not running
+          if (stopBtn) {
+            stopBtn.disabled = true;
+            stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            stopBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+            stopBtn.classList.add('bg-slate-600');
+          }
+        }
+      } catch (err) {
+        label.textContent = `⚠️ Error checking Frida status`;
+        label.classList.remove('text-green-400');
+        label.classList.add('text-red-400');
+        
+        // Also disable button on error
+        if (stopBtn) {
+          stopBtn.disabled = true;
+          stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
+          stopBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+          stopBtn.classList.add('bg-slate-600');
+        }
+      }
+    }
+
+
+
+    // Proxy management functions
+    async function setProxy(enable) {
+      const hostInput = document.getElementById('proxyHostInput');
+      const portInput = document.getElementById('proxyPortInput');
+      const statusLabel = document.getElementById('proxyStatusLabel');
+      const onBtn = document.getElementById('proxyOnBtn');
+      const offBtn = document.getElementById('proxyOffBtn');
+
+      if (enable) {
+        const host = hostInput?.value?.trim();
+        const port = portInput?.value?.trim();
+
+        if (!host || !port) {
+          showToast('Please enter both host and port', 'warn');
+          return;
+        }
+
+        // Validate port number
+        if (isNaN(port) || parseInt(port) < 1 || parseInt(port) > 65535) {
+          showToast('Invalid port number (1-65535)', 'error');
+          return;
+        }
+
+        // Save to localStorage
+        localStorage.setItem('proxyHost', host);
+        localStorage.setItem('proxyPort', port);
+      }
+
+      // Show loading state
+      const targetBtn = enable ? onBtn : offBtn;
+      const originalHTML = targetBtn.innerHTML;
+      targetBtn.disabled = true;
+      targetBtn.innerHTML = `<span class="animate-pulse">${enable ? '⏳ Enabling...' : '⏳ Disabling...'}</span>`;
+
+      try {
+        const res = await fetch('/api/proxy/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enable: enable,
+            host: hostInput?.value?.trim(),
+            port: portInput?.value?.trim()
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+          showToast(data.message, 'success');
+
+          // Update status label
+          if (enable) {
+            statusLabel.textContent = `✅ Proxy enabled: ${data.proxy}`;
+            statusLabel.classList.remove('text-slate-400', 'text-red-400');
+            statusLabel.classList.add('text-green-400');
+          } else {
+            statusLabel.textContent = `❌ Proxy disabled`;
+            statusLabel.classList.remove('text-green-400', 'text-slate-400');
+            statusLabel.classList.add('text-red-400');
+          }
+        } else {
+          showToast(data.message || 'Failed to configure proxy', 'error');
+        }
+      } catch (err) {
+        console.error('Proxy config error:', err);
+        showToast('Error configuring proxy', 'error');
+      }
+
+      // Restore button state
+      targetBtn.disabled = false;
+      targetBtn.innerHTML = originalHTML;
+    }
+
+    async function loadProxySettings() {
+      const hostInput = document.getElementById('proxyHostInput');
+      const portInput = document.getElementById('proxyPortInput');
+      const statusLabel = document.getElementById('proxyStatusLabel');
+
+      // Load from localStorage
+      const savedHost = localStorage.getItem('proxyHost');
+      const savedPort = localStorage.getItem('proxyPort');
+
+      if (savedHost) hostInput.value = savedHost;
+      if (savedPort) portInput.value = savedPort;
+
+      // Check current proxy status
+      try {
+        const res = await fetch('/api/proxy/status');
+        const data = await res.json();
+
+        if (data.enabled && data.proxy) {
+          statusLabel.textContent = `✅ Proxy enabled: ${data.proxy}`;
+          statusLabel.classList.remove('text-slate-400', 'text-red-400');
+          statusLabel.classList.add('text-green-400');
+        } else {
+          statusLabel.textContent = `❌ Proxy disabled`;
+          statusLabel.classList.remove('text-green-400', 'text-slate-400');
+          statusLabel.classList.add('text-red-400');
+        }
+      } catch (err) {
+        console.error('Failed to load proxy status:', err);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadSavedFridaPath();
+      loadFridaProcessLabel();
+      loadProxySettings();
+      setInterval(loadFridaProcessLabel, 5000); // ✅ Refresh every 5s
+
+    });
+
+  </script>
+
+  <!-- Shared and page-specific scripts -->
+  <!-- Global scripts that should be on ALL pages -->
+  <script src="/static/js/status.js"></script>
+
+  <!-- Page-specific scripts go ONLY in this block from child templates -->
+  {% block pagescripts %}{% endblock %}
+
+
+
+</body>
+</html>

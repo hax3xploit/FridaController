@@ -1,0 +1,252 @@
+<!-- templates/dashboard.html -->
+{% extends "layout.html" %}
+{% block content %}
+<div class="space-y-8 animate-slide-up">
+  <!-- Header Section -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-3xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+        Instrumentation Dashboard
+      </h1>
+      <p class="text-slate-400 mt-1">Monitor and control target processes in real-time</p>
+      
+      <!-- Process attachment status -->
+      <div class="flex items-center gap-2 mt-2">
+        <span id="attachedBadge" class="px-2 py-1 rounded text-xs bg-slate-700 text-slate-200">Not Attached</span>
+        <span id="attachedProcessLabel" class="text-slate-400 text-sm">—</span>
+      </div>
+    </div>
+    <div class="flex items-center space-x-3">
+      <button onclick="refreshDashboard()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-white font-medium transition-all duration-200 shadow-lg hover:shadow-primary-500/25">
+        Refresh All
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="glass-effect rounded-xl p-6 border border-slate-700/50">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-slate-400 text-sm font-medium">Active Sessions</p>
+          <p class="text-2xl font-bold text-white mt-1" id="activeSessions">0</p>
+        </div>
+        <div class="w-12 h-12 bg-primary-500/20 rounded-lg flex items-center justify-center">
+          <svg class="w-6 h-6 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+    
+    <div class="glass-effect rounded-xl p-6 border border-slate-700/50">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-slate-400 text-sm font-medium">Connected Devices</p>
+          <p class="text-2xl font-bold text-white mt-1" id="deviceCount">0</p>
+          <p class="text-sm text-slate-400 mt-1">Frida Server: <span id="fridaStatus" class="text-amber-400">Checking...</span></p>
+        </div>
+        <div class="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+          <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+    
+    <div class="glass-effect rounded-xl p-6 border border-slate-700/50">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-slate-400 text-sm font-medium">Running Processes</p>
+          <p class="text-2xl font-bold text-white mt-1" id="processCount">0</p>
+        </div>
+        <div class="w-12 h-12 bg-amber-500/20 rounded-lg flex items-center justify-center">
+          <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+    <!-- Left Column - Device & Process Selection -->
+    <div class="xl:col-span-1 space-y-6">
+      <!-- Device Selection -->
+      <div class="glass-effect rounded-xl p-6 border border-slate-700/50">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-primary-500/20 rounded-lg flex items-center justify-center">
+              <svg class="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 class="text-lg font-semibold text-white">Target Device</h2>
+          </div>
+          <button onclick="loadDevices()"
+                  class="p-2 hover:bg-white/5 rounded-lg transition-colors duration-200" title="Refresh devices">
+            <svg class="w-4 h-4 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+          </button>
+        </div>
+
+        <select id="deviceSelect"
+                class="w-full bg-dark-800 text-white p-3 rounded-lg border border-slate-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200">
+          <option selected disabled>Scanning for devices...</option>
+        </select>
+      </div>
+
+      <!-- Process Selection -->
+      <div class="glass-effect rounded-xl p-6 border border-slate-700/50">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+              </svg>
+            </div>
+            <h2 class="text-lg font-semibold text-white">Running Processes</h2>
+          </div>
+          <button onclick="loadProcesses()"
+                  class="p-2 hover:bg-white/5 rounded-lg transition-colors duration-200"
+                  title="Refresh running processes">
+            <svg class="w-4 h-4 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Search Input -->
+        <div class="relative mb-4">
+          <input type="text" id="search" placeholder="Search processes..." 
+                 class="w-full bg-dark-800 text-white pl-10 pr-4 py-3 rounded-lg border border-slate-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+
+        <!-- Process Table -->
+        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+          <table class="min-w-full text-sm text-left border border-slate-700 table-fixed">
+            <thead class="bg-slate-800 text-slate-400 text-xs uppercase border-b border-slate-700">
+              <tr>
+                <th class="border border-slate-700 px-2 py-1 w-8 text-center">#</th>
+                <th class="border border-slate-700 px-2 py-1">App Name</th>
+                <th class="border border-slate-700 px-2 py-1">Package ID</th>
+              </tr>
+            </thead>
+            <tbody id="processTable" class="bg-slate-900">
+              <tr><td colspan="3" class="p-3 text-slate-400 text-center">Loading processes...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <button id="attachBtn" disabled
+                class="mt-4 w-full px-4 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-all duration-200 shadow-lg hover:shadow-primary-500/25">
+          <span class="flex items-center justify-center space-x-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+            </svg>
+            <span>Select as Target</span>
+          </span>
+        </button>
+
+        <!-- Quick Actions Panel -->
+        <div id="quickActionsPanel" class="mt-4 p-4 bg-gradient-to-r from-emerald-900/30 to-blue-900/30 rounded-lg border border-emerald-500/30 hidden">
+          <div class="text-sm text-slate-300 mb-3">
+            <span class="font-semibold text-emerald-400">Target Selected:</span> <span id="quickActionTargetName">—</span>
+          </div>
+          <div class="grid grid-cols-1 gap-2">
+            <button onclick="quickSpawnWithScripts()"
+                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white font-medium transition-all duration-200 shadow-lg flex items-center justify-center space-x-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+              <span>Spawn & Inject Scripts</span>
+            </button>
+            <button onclick="quickSpawnOnly(event)"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-all duration-200 shadow-lg flex items-center justify-center space-x-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>Just Spawn (No Scripts)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column - Live Console -->
+    <div class="xl:col-span-2">
+      <div class="glass-effect rounded-xl p-6 border border-slate-700/50 h-full">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <h2 class="text-lg font-semibold text-white">Live Console</h2>
+            <!-- WebSocket Connection Health Indicator -->
+            <div class="flex items-center space-x-1" title="WebSocket connection status">
+              <div id="wsConnectionIndicator" class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+              <span id="wsConnectionStatus" class="text-xs text-emerald-400 font-medium">Connected</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center space-x-2">
+            <button onclick="clearConsole()" class="p-2 hover:bg-white/5 rounded-lg transition-colors duration-200" title="Clear console">
+              <svg class="w-4 h-4 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+            <button onclick="exportLogs()" class="p-2 hover:bg-white/5 rounded-lg transition-colors duration-200" title="Export logs">
+              <svg class="w-4 h-4 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div id="consoleBox"
+             class="bg-black console-glow p-4 rounded-lg h-[600px] overflow-auto text-sm font-mono border border-emerald-500/20 text-emerald-400 leading-relaxed">
+          <div class="text-slate-500 text-xs mb-2">
+            <span class="text-slate-400">🔄 Connecting to Dashboard Live Console...</span>
+            <br>
+            <span class="text-slate-500">System events, Frida operations, and device status will appear here.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Dashboard-specific functions
+function refreshDashboard() {
+  loadDevices();
+  loadProcesses();
+  updateStats();
+  showToast('Dashboard refreshed', 'success');
+}
+
+
+
+// Update stats when page loads and periodically
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(updateStats, 1000);
+  setInterval(updateStats, 5000);
+});
+</script>
+
+{% block pagescripts %}
+  <script src="/static/js/dashboard.js"></script>
+{% endblock %}
+{% endblock %}
