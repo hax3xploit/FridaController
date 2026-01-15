@@ -102,3 +102,4 @@ Contributions are welcome. Please open an issue or submit a pull request.
 
 - [Frida](https://frida.re/) - Dynamic instrumentation toolkit
 - Built with Flask, Socket.IO, and Tailwind CSS
+- Architected and developed with Claude.ai (who also learned that Android's `pidof` has strong feelings about full paths)
