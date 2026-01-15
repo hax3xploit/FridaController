@@ -2,6 +2,13 @@
 
 A web-based graphical interface for Frida dynamic instrumentation toolkit, designed for Android reverse engineering and security research.
 
+![Frida GUI Dashboard](screenshots/dashboard.png)
+
+## Screenshots
+
+![Script Library](screenshots/scripts.png)
+![Screen Viewer](screenshots/screen-viewer.png)
+
 ## Features
 
 - **Dashboard**: Monitor Frida server status, manage ADB devices, and browse running processes
@@ -21,7 +28,7 @@ A web-based graphical interface for Frida dynamic instrumentation toolkit, desig
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/frida-gui.git
+git clone https://github.com/hax3xploit/FridaController.git
 cd frida-gui
 ```
 
