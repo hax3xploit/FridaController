@@ -172,6 +172,12 @@ def screen_viewer():
     return render_template('screen_viewer.html')
 
 
+@app.route('/adb-console')
+def adb_console():
+    """ADB console page"""
+    return render_template('adb_console.html')
+
+
 @app.route('/api/screen/capture')
 def screen_capture():
     """Capture a single screenshot from Android device"""
@@ -282,6 +288,203 @@ def screen_input():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/adb/execute', methods=['POST'])
+def execute_adb_command():
+    """Execute ADB command and return output"""
+    try:
+        from frida_ops import session_cache
+        data = request.get_json()
+        command = data.get('command', '').strip()
+        device_id = data.get('device_id') or session_cache.get("selected_device_id")
+
+        if not command:
+            return jsonify({"ok": False, "error": "No command provided"}), 400
+
+        # Build ADB command
+        cmd = ['adb']
+
+        # Add device selector if specified
+        if device_id:
+            cmd.extend(['-s', device_id])
+
+        # Parse and add the command parts
+        # If command starts with 'adb', skip it
+        if command.startswith('adb '):
+            command = command[4:]
+
+        # Split command into parts
+        cmd.extend(command.split())
+
+        # Execute with timeout
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        return jsonify({
+            "ok": True,
+            "output": result.stdout if result.stdout else result.stderr,
+            "returncode": result.returncode,
+            "command": ' '.join(cmd)
+        })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "Command timeout (30s)"}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ADB Shell session management
+shell_sessions = {}
+
+@app.route('/api/adb/shell/connect', methods=['POST'])
+def connect_adb_shell():
+    """Start an interactive ADB shell session"""
+    try:
+        from frida_ops import session_cache
+        data = request.get_json()
+        device_id = data.get('device_id') or session_cache.get("selected_device_id")
+
+        session_id = f"shell_{uuid.uuid4().hex[:12]}"
+
+        # Build ADB shell command
+        cmd = ['adb']
+        if device_id:
+            cmd.extend(['-s', device_id])
+        cmd.append('shell')
+
+        # Start interactive shell process
+        process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+
+        # Store session
+        shell_sessions[session_id] = {
+            'process': process,
+            'device_id': device_id,
+            'created_at': monotonic()
+        }
+
+        return jsonify({
+            "ok": True,
+            "session_id": session_id,
+            "message": "Shell session started"
+        })
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/adb/shell/execute', methods=['POST'])
+def execute_shell_command():
+    """Execute command in interactive shell session"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        command = data.get('command', '').strip()
+
+        if not session_id or session_id not in shell_sessions:
+            return jsonify({"ok": False, "error": "Invalid or expired shell session"}), 400
+
+        if not command:
+            return jsonify({"ok": False, "error": "No command provided"}), 400
+
+        session = shell_sessions[session_id]
+        process = session['process']
+
+        # Check if process is still alive
+        if process.poll() is not None:
+            del shell_sessions[session_id]
+            return jsonify({"ok": False, "error": "Shell session terminated"}), 400
+
+        # Add echo marker to detect end of output
+        marker = f"__END_OF_COMMAND_{uuid.uuid4().hex[:8]}__"
+        full_command = f"{command}; echo '{marker}'\n"
+
+        # Send command to shell
+        process.stdin.write(full_command)
+        process.stdin.flush()
+
+        # Read output until we see the marker
+        import time
+        output_lines = []
+        start_time = time.time()
+        timeout = 10  # 10 second timeout
+
+        try:
+            while time.time() - start_time < timeout:
+                line = process.stdout.readline()
+                if not line:
+                    break
+
+                line = line.rstrip()
+
+                # Check if we hit the marker
+                if marker in line:
+                    # Remove the marker line from output
+                    break
+
+                # Skip the command echo if it appears
+                if line.strip() == command.strip():
+                    continue
+
+                output_lines.append(line)
+
+        except Exception as read_error:
+            print(f"Error reading shell output: {read_error}")
+
+        output = '\n'.join(output_lines) if output_lines else ''
+
+        return jsonify({
+            "ok": True,
+            "output": output,
+            "prompt": "shell@android:/ $"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/adb/shell/disconnect', methods=['POST'])
+def disconnect_adb_shell():
+    """Disconnect from shell session"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+
+        if session_id and session_id in shell_sessions:
+            session = shell_sessions[session_id]
+            process = session['process']
+
+            # Terminate process
+            try:
+                process.stdin.write('exit\n')
+                process.stdin.flush()
+                process.wait(timeout=2)
+            except:
+                process.terminate()
+                try:
+                    process.wait(timeout=1)
+                except:
+                    process.kill()
+
+            del shell_sessions[session_id]
+
+        return jsonify({"ok": True, "message": "Shell session closed"})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.post("/api/set-target/<path:identifier>")
