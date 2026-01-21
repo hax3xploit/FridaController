@@ -2,4 +2,4 @@ flask
 flask-socketio
 eventlet
 frida
-
+Pillow
