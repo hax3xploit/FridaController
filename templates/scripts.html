@@ -18,34 +18,218 @@
         </div>
       </div>
     </div>
-    <button id="disconnectBtn" onclick="disconnectFromProcess()" class="hidden px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm font-medium transition-all duration-200">
-      Disconnect
-    </button>
+    <div class="flex items-center gap-2">
+      <!-- Session History Dropdown -->
+      <div class="relative">
+        <button id="historyDropdownBtn" onclick="toggleHistoryDropdown()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm font-medium transition-all duration-200 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Recent
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+        <div id="historyDropdown" class="hidden absolute right-0 mt-2 w-80 bg-slate-800 rounded-lg shadow-2xl border border-slate-700 z-50 max-h-96 overflow-y-auto">
+          <div class="p-3 border-b border-slate-700">
+            <h3 class="text-sm font-semibold text-white">Recent Targets</h3>
+          </div>
+          <div id="historyList" class="p-2">
+            <div class="text-center text-slate-400 py-4 text-sm">No recent targets</div>
+          </div>
+        </div>
+      </div>
+      <button id="reconnectBtn" onclick="reconnectToTarget()" class="hidden px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm font-medium transition-all duration-200 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        Reconnect
+      </button>
+      <button id="disconnectBtn" onclick="disconnectFromProcess()" class="hidden px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm font-medium transition-all duration-200">
+        Disconnect
+      </button>
+    </div>
+  </div>
+
+  <!-- Quick Tutorial / Help Section -->
+  <div id="tutorialBanner" class="glass-effect rounded-xl border border-blue-500/30 bg-gradient-to-r from-blue-600/10 to-purple-600/10 overflow-hidden">
+    <div class="p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <h3 class="text-sm font-semibold text-white">Quick Guide: Two Ways to Inject Scripts</h3>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-300">
+            <!-- Method 1 -->
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <span class="text-xs font-bold text-emerald-400">1</span>
+                </div>
+                <h4 class="font-medium text-white text-xs">From Script Library (Left Sidebar)</h4>
+              </div>
+              <ul class="space-y-1.5 text-xs text-slate-400 ml-8">
+                <li class="flex items-start gap-2">
+                  <svg class="w-3 h-3 mt-0.5 flex-shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                  <span><strong class="text-slate-300">Select scripts</strong> using checkboxes</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="w-3 h-3 mt-0.5 flex-shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                  <span>Click <strong class="text-slate-300">"Spawn & Inject Selected"</strong> in the toolbar</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="w-3 h-3 mt-0.5 flex-shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                  <span><strong class="text-slate-300">Use this for:</strong> Multiple pre-built scripts at once</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Method 2 -->
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                  <span class="text-xs font-bold text-purple-400">2</span>
+                </div>
+                <h4 class="font-medium text-white text-xs">From Custom Script Editor (Right Side)</h4>
+              </div>
+              <ul class="space-y-1.5 text-xs text-slate-400 ml-8">
+                <li class="flex items-start gap-2">
+                  <svg class="w-3 h-3 mt-0.5 flex-shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                  <span><strong class="text-slate-300">Write or edit</strong> script in Monaco editor</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="w-3 h-3 mt-0.5 flex-shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                  <span>Click <strong class="text-slate-300">"Spawn & Inject"</strong> in editor toolbar</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="w-3 h-3 mt-0.5 flex-shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                  <span><strong class="text-slate-300">Use this for:</strong> Custom or modified single script</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Additional Tips -->
+          <div class="mt-3 pt-3 border-t border-slate-700/50">
+            <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-400">
+              <div class="flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                <span><strong class="text-slate-300">Tip:</strong> Select a target from Dashboard first</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Use <strong class="text-slate-300">"Recent"</strong> button to reconnect to previous targets</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                </svg>
+                <span>Click any library script to <strong class="text-slate-300">load into editor</strong> for customization</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Close button -->
+        <button onclick="closeTutorial()" class="text-slate-400 hover:text-white transition-colors flex-shrink-0" title="Close tutorial">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
 
   <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-    <!-- Left Sidebar - Script Library -->
+    <!-- Left Sidebar - Script Library (Improved) -->
     <div class="xl:col-span-1">
-      <div class="glass-effect rounded-xl p-4 border border-slate-700/50">
-        <h2 class="text-lg font-semibold text-white mb-3">Script Library</h2>
+      <div class="glass-effect rounded-xl border border-slate-700/50 overflow-hidden">
+        <!-- Library Header -->
+        <div class="bg-gradient-to-r from-emerald-600/20 to-blue-600/20 p-4 border-b border-slate-700/50">
+          <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
+            </svg>
+            Script Library
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">Pre-built Frida scripts</p>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="p-3 border-b border-slate-700/50 space-y-3">
+          <!-- Search -->
+          <div class="relative">
+            <input type="text" id="scriptSearch"
+                   class="w-full bg-slate-800 text-white px-3 py-2 pl-9 rounded-lg border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-sm"
+                   placeholder="Search scripts..."
+                   autocomplete="off">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+          </div>
+
+          <!-- Category Pills -->
+          <div class="flex flex-wrap gap-1.5">
+            <button onclick="filterByCategory('All')" class="category-pill active" data-category="All">
+              All
+            </button>
+            <button onclick="filterByCategory('Bypass')" class="category-pill" data-category="Bypass">
+              Bypass
+            </button>
+            <button onclick="filterByCategory('Crypto')" class="category-pill" data-category="Crypto">
+              Crypto
+            </button>
+            <button onclick="filterByCategory('Network')" class="category-pill" data-category="Network">
+              Network
+            </button>
+            <button onclick="filterByCategory('Memory')" class="category-pill" data-category="Memory">
+              Memory
+            </button>
+          </div>
+        </div>
 
         <!-- Upload Section -->
-        <div class="mb-4">
+        <div class="p-3 border-b border-slate-700/50">
           <input type="file" id="scriptUpload" class="hidden" accept=".js,.ts,.txt" />
-          <label for="scriptUpload" class="w-full flex items-center justify-center px-3 py-2 border-2 border-dashed border-slate-600 rounded-lg hover:border-primary-500 transition-all duration-200 cursor-pointer group">
+          <label for="scriptUpload" class="w-full flex items-center justify-center px-3 py-2 border-2 border-dashed border-slate-600 rounded-lg hover:border-emerald-500 transition-all cursor-pointer group">
             <div class="text-center">
-              <svg class="w-6 h-6 text-slate-400 group-hover:text-primary-400 mx-auto mb-1 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-slate-400 group-hover:text-emerald-400 mx-auto mb-1 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
               </svg>
-              <p class="text-xs text-slate-300 group-hover:text-white transition-colors duration-200">Upload Script</p>
+              <p class="text-xs text-slate-300 group-hover:text-white transition-colors">Upload Script</p>
             </div>
           </label>
         </div>
 
         <!-- Script List -->
-        <div class="space-y-2 max-h-[500px] overflow-y-auto">
-          <div id="scriptList" class="space-y-2">
-            <div class="text-center text-slate-400 py-4 text-sm">Loading scripts...</div>
+        <div class="p-3">
+          <div id="scriptList" class="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar">
+            <div class="text-center text-slate-400 py-8 text-sm">
+              <svg class="w-8 h-8 mx-auto mb-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              Loading scripts...
+            </div>
           </div>
         </div>
       </div>
@@ -56,16 +240,30 @@
       <!-- Editor Toolbar -->
       <div class="glass-effect rounded-xl p-3 border border-slate-700/50">
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <h2 class="text-lg font-semibold text-white">Custom Script</h2>
+          <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+            </svg>
+            Custom Script
+          </h2>
 
           <div class="flex items-center space-x-2">
-            <button onclick="formatEditorScript()" class="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 rounded-lg text-white text-sm transition-all duration-200">
+            <button onclick="formatEditorScript()" class="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 rounded-lg text-white text-sm transition-all flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path>
+              </svg>
               Format
             </button>
-            <button onclick="validateEditorScript()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 rounded-lg text-white text-sm transition-all duration-200">
+            <button onclick="validateEditorScript()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 rounded-lg text-white text-sm transition-all flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
               Validate
             </button>
-            <button id="spawnInject" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-all duration-200 shadow-lg hover:shadow-purple-500/25">
+            <button id="spawnInject" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-all shadow-lg hover:shadow-purple-500/25 flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
               Spawn & Inject
             </button>
           </div>
@@ -77,7 +275,6 @@
         <div class="bg-dark-900 border-b border-slate-700 px-4 py-2 flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <span class="text-sm text-slate-400 font-mono">frida-script.js</span>
-            <!-- Auto-save indicator -->
             <span id="autoSaveIndicator" class="text-xs text-slate-500 hidden">
               <span class="inline-flex items-center">
                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,7 +297,6 @@
             <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
           </div>
           <div class="flex items-center space-x-2">
-            <!-- Console Search -->
             <div class="relative">
               <input type="text" id="consoleSearch" placeholder="Search console..."
                      class="w-40 bg-slate-800 text-white text-xs px-3 py-1 pl-7 rounded border border-slate-600 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
@@ -109,7 +305,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
             </div>
-            <!-- Filter by type -->
             <select id="consoleTypeFilter" class="bg-slate-800 text-white text-xs px-2 py-1 rounded border border-slate-600 focus:ring-1 focus:ring-emerald-500"
                     onchange="filterConsole(document.getElementById('consoleSearch').value)">
               <option value="all">All</option>
@@ -123,7 +318,7 @@
             <button onclick="clearConsole()" class="text-xs text-rose-400 hover:text-white transition-all">Clear</button>
           </div>
         </div>
-        <div id="consoleOutput" class="bg-slate-900 p-4 text-sm font-mono h-56 overflow-y-auto">
+        <div id="consoleOutput" class="bg-slate-900 p-4 text-sm font-mono h-56 overflow-y-auto custom-scrollbar">
           <!-- Console lines will appear here -->
         </div>
       </div>
@@ -143,8 +338,53 @@
   </div>
 </div>
 
+<style>
+.category-pill {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  background: rgba(30, 41, 59, 0.5);
+  color: #94a3b8;
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.category-pill:hover {
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+.category-pill.active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border-color: #10b981;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.5);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.8);
+}
+</style>
+
 {% block pagescripts %}
   <script src="/static/js/scripts.js"></script>
   <script src="/static/js/script_library.js"></script>
+  <script src="/static/js/session_history.js"></script>
 {% endblock %}
 {% endblock %}

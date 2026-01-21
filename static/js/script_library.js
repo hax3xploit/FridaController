@@ -355,6 +355,27 @@ function setupToolbarListeners() {
     applyFilters();
   }
 
+  function filterByCategory(category) {
+    // Update active pill styling
+    document.querySelectorAll('.category-pill').forEach(pill => {
+      pill.classList.remove('active');
+      if (pill.textContent.trim() === category) {
+        pill.classList.add('active');
+      }
+    });
+
+    // Update filter and apply
+    currentFilters.category = category;
+
+    // Sync with dropdown if it exists
+    const categoryFilter = document.getElementById('categoryFilter');
+    if (categoryFilter) {
+      categoryFilter.value = category;
+    }
+
+    applyFilters();
+  }
+
   function clearAllFilters() {
     currentFilters = {
       search: '',
@@ -372,6 +393,14 @@ function setupToolbarListeners() {
     if (platformFilter) platformFilter.value = 'all';
     if (categoryFilter) categoryFilter.value = 'All';
     if (tagInput) tagInput.value = '';
+
+    // Reset pills to "All"
+    document.querySelectorAll('.category-pill').forEach(pill => {
+      pill.classList.remove('active');
+      if (pill.textContent.trim() === 'All') {
+        pill.classList.add('active');
+      }
+    });
 
     updateTagDisplay();
     applyFilters();
@@ -818,4 +847,5 @@ function setupToolbarListeners() {
   window.removeTag = removeTag;
   window.clearAllFilters = clearAllFilters;
   window.applyFilters = applyFilters;
+  window.filterByCategory = filterByCategory;
 }

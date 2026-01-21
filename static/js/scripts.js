@@ -893,12 +893,33 @@ if (typeof Java !== 'undefined') {
   // ---------------------------------------------
   function updateDisconnectButton(show) {
     // Get fresh reference each time to avoid stale element issues
-    const btn = document.getElementById('disconnectBtn');
-    if (btn) {
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const reconnectBtn = document.getElementById('reconnectBtn');
+
+    if (disconnectBtn) {
       if (show) {
-        btn.classList.remove('hidden');
+        disconnectBtn.classList.remove('hidden');
       } else {
-        btn.classList.add('hidden');
+        disconnectBtn.classList.add('hidden');
+      }
+    }
+
+    // Show reconnect button when disconnected but target is saved
+    if (reconnectBtn) {
+      if (!show) {
+        // Check if there's a saved target
+        fetch('/api/target')
+          .then(res => res.ok ? res.json() : null)
+          .then(target => {
+            if (target && target.identifier) {
+              reconnectBtn.classList.remove('hidden');
+            } else {
+              reconnectBtn.classList.add('hidden');
+            }
+          })
+          .catch(() => reconnectBtn.classList.add('hidden'));
+      } else {
+        reconnectBtn.classList.add('hidden');
       }
     }
   }
@@ -949,6 +970,47 @@ if (typeof Java !== 'undefined') {
     }
   }
   window.disconnectFromProcess = disconnectFromProcess;
+
+  async function reconnectToTarget() {
+    try {
+      // Get saved target
+      const tRes = await fetch('/api/target');
+      if (!tRes.ok) {
+        showToast('No saved target. Please select a process from Dashboard first.', 'warn');
+        return;
+      }
+
+      const target = await tRes.json();
+      const identifier = target.identifier;
+      const displayName = target.name || identifier || 'Process';
+
+      showToast(`Reconnecting to ${displayName}...`, 'info');
+      appendConsole(`Attempting to reconnect to ${displayName}...`, 'info');
+
+      // Try to attach to the running process
+      const response = await fetch(`/api/attach/${identifier}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: displayName })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.status === 'error') {
+        throw new Error(result.message || 'Failed to reconnect');
+      }
+
+      // Successfully reconnected
+      showToast(`✅ Reconnected to ${displayName}`, 'success');
+      appendConsole(`Reconnected to ${displayName} (PID ${result.pid})`, 'success');
+      setAttachedState(true, displayName, result.session_id, result.pid, false, identifier);
+
+    } catch (e) {
+      appendConsole(`Reconnect failed: ${e.message}`, 'error');
+      showToast(`❌ Reconnect failed: ${e.message}`, 'error');
+    }
+  }
+  window.reconnectToTarget = reconnectToTarget;
 
   function setAttachedState(attached, name = '—', sessionId = null, pid = null, savedTargetOnly = false, packageId = null) {
     console.log(`[State] setAttachedState: attached=${attached}, sessionId=${sessionId}, pid=${pid}, packageId=${packageId}, savedTargetOnly=${savedTargetOnly}`);
@@ -1296,8 +1358,48 @@ function validateEditorScript() {
     setTimeout(kick, 100);
   });
 
+  // Tutorial banner close function
+  function closeTutorial() {
+    const banner = document.getElementById('tutorialBanner');
+    if (banner) {
+      banner.style.opacity = '0';
+      banner.style.transform = 'translateY(-10px)';
+      banner.style.transition = 'all 0.3s ease';
+
+      setTimeout(() => {
+        banner.style.display = 'none';
+      }, 300);
+
+      // Remember user dismissed it
+      try {
+        localStorage.setItem('frida_tutorial_dismissed', 'true');
+      } catch (e) {
+        console.warn('Failed to save tutorial preference:', e);
+      }
+    }
+  }
+  window.closeTutorial = closeTutorial;
+
+  // Check if tutorial should be hidden on load
+  function checkTutorialVisibility() {
+    try {
+      const dismissed = localStorage.getItem('frida_tutorial_dismissed');
+      if (dismissed === 'true') {
+        const banner = document.getElementById('tutorialBanner');
+        if (banner) {
+          banner.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to check tutorial preference:', e);
+    }
+  }
+
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     stopConsolePolling();
   });
+
+  // Check tutorial visibility after page loads
+  setTimeout(checkTutorialVisibility, 100);
 }
