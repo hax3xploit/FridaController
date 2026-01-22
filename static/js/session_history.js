@@ -232,17 +232,21 @@ if (!window.__sessionHistoryLoaded) {
     return 'Just now';
   }
 
-  async function selectFromHistory(identifier) {
+  async function selectFromHistory(identifier, injectScripts = false) {
     try {
       // Close dropdown
       const dropdown = document.getElementById('historyDropdown');
       if (dropdown) dropdown.classList.add('hidden');
 
+      // Find the session to get script info
+      const history = loadSessionHistory();
+      const session = history.sessions.find(s => s.identifier === identifier);
+
       if (typeof showToast === 'function') {
         showToast(`Reconnecting to ${identifier}...`, 'info');
       }
 
-      // Attempt to attach
+      // Use regular attach endpoint which will launch app if not running
       const response = await fetch(`/api/attach/${identifier}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -275,6 +279,92 @@ if (!window.__sessionHistoryLoaded) {
         appendConsole(`Reconnected to ${result.name || identifier} (PID ${result.pid})`, 'success');
       }
 
+      // Only inject scripts if requested (via Replay button)
+      if (injectScripts && session && session.scripts && session.scripts.length > 0) {
+        console.log('[SessionHistory] Checking if session has scripts:', session);
+        console.log(`[SessionHistory] Session has ${session.scripts.length} scripts:`, session.scripts);
+
+        if (typeof showToast === 'function') {
+          showToast(`Re-injecting ${session.scripts.length} script(s)...`, 'info');
+        }
+
+        // Wait a bit for connection to stabilize
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Fetch script library directly from API if window.scriptLibrary is not available
+        let scriptLibrary = window.scriptLibrary || [];
+
+        if (scriptLibrary.length === 0) {
+          console.log('[SessionHistory] Script library empty, fetching from API...');
+          try {
+            const libResponse = await fetch('/api/scripts');
+            if (libResponse.ok) {
+              scriptLibrary = await libResponse.json();
+              console.log('[SessionHistory] Fetched', scriptLibrary.length, 'scripts from API');
+            }
+          } catch (err) {
+            console.error('[SessionHistory] Failed to fetch script library:', err);
+          }
+        }
+
+        console.log('[SessionHistory] Script library has', scriptLibrary.length, 'scripts');
+        const scriptIds = [];
+
+        for (const scriptName of session.scripts) {
+          const script = scriptLibrary.find(s => s.name === scriptName);
+          if (script) {
+            console.log(`[SessionHistory] Found script: ${scriptName} (ID: ${script.id})`);
+            scriptIds.push(script.id);
+          } else {
+            console.warn(`[SessionHistory] Script not found in library: ${scriptName}`);
+          }
+        }
+
+        console.log('[SessionHistory] Found', scriptIds.length, 'script IDs to inject:', scriptIds);
+
+        if (scriptIds.length > 0) {
+          // Use the new inject-library-scripts endpoint that doesn't relaunch
+          console.log('[SessionHistory] Calling /api/inject-library-scripts with IDs:', scriptIds);
+          const injectResponse = await fetch('/api/inject-library-scripts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ script_ids: scriptIds })
+          });
+
+          const injectResult = await injectResponse.json();
+          console.log('[SessionHistory] Inject response:', injectResult);
+
+          if (injectResponse.ok && injectResult.status === 'ok') {
+            // Update UI to show scripts as selected
+            if (window.selectedScriptIds) {
+              scriptIds.forEach(id => window.selectedScriptIds.add(id));
+              console.log('[SessionHistory] Updated selectedScriptIds:', Array.from(window.selectedScriptIds));
+
+              // Refresh the script library UI to show checkboxes as checked
+              if (typeof window.renderScriptLibrary === 'function') {
+                window.renderScriptLibrary();
+              }
+            }
+
+            if (typeof showToast === 'function') {
+              showToast(`✅ Re-injected ${injectResult.loaded_count} script(s)`, 'success');
+            }
+            if (typeof appendConsole === 'function') {
+              appendConsole(`Re-injected ${injectResult.loaded_count} script(s)`, 'success');
+            }
+          } else {
+            throw new Error(injectResult.message || 'Failed to inject scripts');
+          }
+        } else {
+          console.warn('[SessionHistory] No matching scripts found in library');
+          if (typeof showToast === 'function') {
+            showToast(`⚠️ Scripts from session not found in library`, 'warn');
+          }
+        }
+      } else if (injectScripts) {
+        console.log('[SessionHistory] Session has no scripts to replay');
+      }
+
     } catch (e) {
       console.error('Failed to select from history:', e);
       if (typeof showToast === 'function') {
@@ -300,37 +390,8 @@ if (!window.__sessionHistoryLoaded) {
         showToast(`Replaying session: ${session.name}...`, 'info');
       }
 
-      // First, reconnect to target
-      await selectFromHistory(session.identifier);
-
-      // Wait a bit for connection to establish
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Load each script in order
-      if (session.scripts.length > 0 && typeof window.loadScriptFromLibrary === 'function') {
-        // Find script IDs by name
-        const scriptLibrary = window.scriptLibrary || [];
-        const scriptIds = [];
-
-        for (const scriptName of session.scripts) {
-          const script = scriptLibrary.find(s => s.name === scriptName);
-          if (script) {
-            scriptIds.push(script.id);
-          }
-        }
-
-        if (scriptIds.length > 0) {
-          // Inject all scripts
-          if (typeof window.injectSelectedScripts === 'function') {
-            window.selectedScriptIds = new Set(scriptIds);
-            await window.injectSelectedScripts();
-          }
-
-          if (typeof showToast === 'function') {
-            showToast(`✅ Replayed ${scriptIds.length} script(s)`, 'success');
-          }
-        }
-      }
+      // Pass true to injectScripts parameter to replay with scripts
+      await selectFromHistory(session.identifier, true);
 
     } catch (e) {
       console.error('Failed to replay session:', e);

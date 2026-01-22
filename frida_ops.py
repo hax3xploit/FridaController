@@ -423,29 +423,8 @@ def attach_to_process(identifier: str):
         if session is None:
             print(f"[DEBUG] App not running, trying alternative launch methods...")
             
-            # Try Method 2a: Launch with ADB first
-            try:
-                print(f"[DEBUG] Attempting to launch app with ADB: {identifier}")
-                launch_result = subprocess.run([
-                    "adb", "shell", "monkey", "-p", identifier, "-c", "android.intent.category.LAUNCHER", "1"
-                ], capture_output=True, text=True, timeout=10)
-                
-                if launch_result.returncode == 0:
-                    print(f"[DEBUG] App launched with ADB, waiting for it to start...")
-                    # Wait a bit for the app to start
-                    time.sleep(3)
-                    
-                    # Now try to find it in running processes
-                    processes = device.enumerate_processes()
-                    for proc in processes:
-                        if proc.name == identifier:
-                            print(f"[DEBUG] Found launched process: {proc.name} (PID: {proc.pid})")
-                            session = device.attach(proc.pid)
-                            actual_pid = proc.pid
-                            break
-                
-            except Exception as e:
-                print(f"[DEBUG] ADB launch failed: {e}")
+            # Skip ADB launch - go directly to Frida spawn for cleaner app launch
+            print(f"[DEBUG] Skipping ADB launch, using Frida spawn for clean launch...")
             
             # Method 2b: If ADB launch didn't work, try Frida spawn with longer timeout
             if session is None:

@@ -604,6 +604,20 @@ function setupToolbarListeners() {
       showToast(`✅ Spawned & injected ${data.loaded_count || ids.length} script(s) into ${data.name || displayName}`, 'success');
       appendConsole(`Spawned & injected into ${data.name || displayName} (PID ${data.pid})`, 'success');
 
+      // Track this session in history with script names
+      if (typeof window.addToHistory === 'function') {
+        const scriptNames = ids.map(id => {
+          const script = scriptLibrary.find(s => s.id === id);
+          return script ? script.name : `Script ${id}`;
+        });
+
+        window.addToHistory({
+          identifier: t.identifier,
+          name: data.name || displayName,
+          pid: data.pid
+        }, scriptNames);
+      }
+
     } catch (e) {
       let friendlyMessage = 'Failed to spawn and inject scripts';
 

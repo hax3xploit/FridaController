@@ -48,6 +48,7 @@ if (window.__fridaScriptsJsLoaded) {
   let editor;
   let currentSessionId = null;
   let lastAttachedPid = null;
+  let hasBeenConnected = false; // Track if we've ever been connected in this session
   let pollingInterval = null;
   let lastMessageId = 0;
   let seenMessages = new Set(); // Track seen messages to prevent duplicates
@@ -161,7 +162,10 @@ if (window.__fridaScriptsJsLoaded) {
 
     // Listen for Frida disconnect events (when process is killed/crashed)
     fridaSocket.on('frida_disconnected', (data) => {
-      console.log('[Socket.IO] Received frida_disconnected:', data);
+      console.log('[Socket.IO] ===== DISCONNECT EVENT RECEIVED =====');
+      console.log('[Socket.IO] Disconnect data:', data);
+      console.log('[Socket.IO] intentionalDisconnect flag:', intentionalDisconnect);
+      console.log('[Socket.IO] hasBeenConnected flag:', hasBeenConnected);
 
       // Only show popup notification if this was NOT an intentional disconnect (user clicked Disconnect button)
       if (!intentionalDisconnect) {
@@ -185,14 +189,34 @@ if (window.__fridaScriptsJsLoaded) {
         } else {
           showToast(`Process disconnected: ${data.reason || 'Process terminated'}`, 'error');
         }
+
+        // Ensure reconnect button appears after crash
+        setTimeout(() => {
+          const reconnectBtn = document.getElementById('reconnectBtn');
+          if (reconnectBtn) {
+            // Check if target is still saved
+            fetch('/api/target')
+              .then(res => res.ok ? res.json() : null)
+              .then(target => {
+                if (target && target.identifier) {
+                  reconnectBtn.classList.remove('hidden');
+                  console.log('[Crash] Showing reconnect button for target:', target.identifier);
+                }
+              })
+              .catch(err => console.warn('[Crash] Failed to check target:', err));
+          }
+        }, 500);
       } else {
         console.log('[Socket.IO] Suppressing disconnect notification (intentional disconnect)');
       }
 
-      // Reset UI state regardless
+      // Reset UI state regardless (but keep hasBeenConnected flag for reconnect)
       setAttachedState(false);
       currentSessionId = null;
       lastAttachedPid = null;
+
+      // DON'T reset hasBeenConnected here - keep it true so reconnect button appears
+      console.log('[Crash] hasBeenConnected remains:', hasBeenConnected);
     });
   }
 
@@ -904,9 +928,12 @@ if (typeof Java !== 'undefined') {
       }
     }
 
-    // Show reconnect button when disconnected but target is saved
+    // Reconnect button should ONLY show when:
+    // 1. We're disconnected (show = false)
+    // 2. We've been connected before (hasBeenConnected = true)
+    // 3. A target is still saved
     if (reconnectBtn) {
-      if (!show) {
+      if (!show && hasBeenConnected) {
         // Check if there's a saved target
         fetch('/api/target')
           .then(res => res.ok ? res.json() : null)
@@ -962,6 +989,7 @@ if (typeof Java !== 'undefined') {
       setAttachedState(false);
       currentSessionId = null;
       lastAttachedPid = null;
+      hasBeenConnected = false; // Reset since user intentionally disconnected and target is deleted
     } catch (e) {
       showToast(`Disconnect error: ${e.message}`, 'error');
     } finally {
@@ -987,8 +1015,8 @@ if (typeof Java !== 'undefined') {
       showToast(`Reconnecting to ${displayName}...`, 'info');
       appendConsole(`Attempting to reconnect to ${displayName}...`, 'info');
 
-      // Try to attach to the running process
-      const response = await fetch(`/api/attach/${identifier}`, {
+      // Use attach-only endpoint to avoid launching the app
+      const response = await fetch(`/api/attach-only/${identifier}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: displayName })
@@ -997,13 +1025,29 @@ if (typeof Java !== 'undefined') {
       const result = await response.json();
 
       if (!response.ok || result.status === 'error') {
-        throw new Error(result.message || 'Failed to reconnect');
+        // If app is not running, show helpful message
+        if (response.status === 404 || result.message.includes('not running')) {
+          showToast(`App is not running. Please launch "${displayName}" manually first.`, 'warn');
+          appendConsole(`Cannot reconnect: App "${displayName}" is not running. Launch it first.`, 'warn');
+        } else {
+          throw new Error(result.message || 'Failed to reconnect');
+        }
+        return;
       }
 
       // Successfully reconnected
       showToast(`✅ Reconnected to ${displayName}`, 'success');
       appendConsole(`Reconnected to ${displayName} (PID ${result.pid})`, 'success');
       setAttachedState(true, displayName, result.session_id, result.pid, false, identifier);
+
+      // Track reconnection in history (without scripts since we're just attaching)
+      if (typeof window.addToHistory === 'function') {
+        window.addToHistory({
+          identifier: identifier,
+          name: displayName,
+          pid: result.pid
+        }, []);
+      }
 
     } catch (e) {
       appendConsole(`Reconnect failed: ${e.message}`, 'error');
@@ -1048,6 +1092,8 @@ if (typeof Java !== 'undefined') {
 
     if (attached) {
       // Truly attached (has a valid session_id from backend)
+      hasBeenConnected = true; // Mark that we've been connected
+
       if (badgeEl) {
         badgeEl.textContent = 'Attached';
         badgeEl.classList.remove('bg-slate-700', 'bg-yellow-600');
@@ -1212,6 +1258,15 @@ async function onClickSpawnAndInject() {
     showToast(`✅ Spawned & injected into ${displayName}`, 'success');
     appendConsole(`Spawned and injected successfully into ${displayName} (PID ${result.pid})`, 'success');
     setAttachedState(true, displayName, result.session_id, result.pid, false, identifier);
+
+    // Track this session in history
+    if (typeof window.addToHistory === 'function') {
+      window.addToHistory({
+        identifier: identifier,
+        name: displayName,
+        pid: result.pid
+      }, ['Custom Script']);
+    }
 
   } catch (e) {
     appendConsole(`Error: ${e.message}`, 'error');

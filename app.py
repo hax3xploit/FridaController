@@ -7,10 +7,10 @@ import socket
 import shlex
 import uuid
 from script_library import script_library_bp
-from database import init_script_db, seed_script_library
+from database import init_script_db, seed_script_library, ScriptDatabase
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from frida_ops import inject_script, clear_saved_target, spawn_and_inject, spawn_and_inject_multiple, set_saved_target, get_saved_target, spawn_and_inject, add_console_message, get_console_messages_for_session, get_current_session_info, set_socketio_instance, attach_to_process, session_cache, detach as frida_detach
+from frida_ops import inject_script, clear_saved_target, spawn_and_inject, spawn_and_inject_multiple, set_saved_target, get_saved_target, spawn_and_inject, add_console_message, get_console_messages_for_session, get_current_session_info, set_socketio_instance, attach_to_process, session_cache, detach as frida_detach, get_selected_device
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'fridagui'
@@ -1157,6 +1157,169 @@ def attach(pid):
         }), 500
 
 
+@app.route('/api/attach-only/<string:identifier>', methods=['POST'])
+def attach_only(identifier):
+    """
+    Attach to an already-running process ONLY. Does not launch or spawn.
+    Used for reconnecting to a crashed/killed app that's been manually restarted.
+    """
+    print(f"[DEBUG] Attach-only request received for identifier: {identifier}")
+
+    # Idempotency: if already attached to this identifier, return OK
+    if session_cache.get("session") and session_cache.get("pid") == identifier:
+        return jsonify({
+            "status": "ok",
+            "message": f"Already attached to {identifier}",
+            "pid": identifier,
+            "session_active": True,
+            "session_id": session_cache.get("session_id"),
+            "name": session_cache.get("name")
+        })
+
+    try:
+        device = get_selected_device()
+        body = request.get_json(silent=True) or {}
+        proc_name = body.get("name") or f"process:{identifier}"
+
+        session = None
+        actual_pid = None
+
+        # Check if identifier is a numeric PID
+        if identifier.isdigit():
+            print(f"[DEBUG] Attaching to PID: {identifier}")
+            pid = int(identifier)
+            session = device.attach(pid)
+            actual_pid = pid
+        else:
+            # Try to find running process by package name
+            print(f"[DEBUG] Looking for running process with identifier: {identifier}")
+            processes = device.enumerate_processes()
+
+            # First, try exact name match
+            for proc in processes:
+                if proc.name == identifier:
+                    print(f"[DEBUG] Found running process by name: {proc.name} (PID: {proc.pid})")
+                    session = device.attach(proc.pid)
+                    actual_pid = proc.pid
+                    proc_name = proc.name
+                    break
+
+            # If not found by name, try to match by package identifier
+            if session is None:
+                print(f"[DEBUG] Not found by name, checking applications...")
+                try:
+                    applications = device.enumerate_applications()
+
+                    # Debug: Print processes containing our identifier
+                    print(f"[DEBUG] Total running processes: {len(processes)}")
+                    matching_procs = [p for p in processes if identifier.lower() in p.name.lower() or 'sooum' in p.name.lower()]
+                    if matching_procs:
+                        print(f"[DEBUG] Potentially matching processes:")
+                        for proc in matching_procs:
+                            print(f"[DEBUG]   - {proc.name} (PID: {proc.pid})")
+                    else:
+                        print(f"[DEBUG] No processes found matching '{identifier}'")
+
+                    # Find the app with matching identifier
+                    target_app = None
+                    for app in applications:
+                        if app.identifier == identifier:
+                            target_app = app
+                            print(f"[DEBUG] Found application: {app.name} ({app.identifier})")
+                            break
+
+                    if target_app:
+                        # Now find the running process with more flexible matching
+                        for proc in processes:
+                            # Try exact match
+                            if proc.name == target_app.name:
+                                print(f"[DEBUG] Found running process (exact): {proc.name} (PID: {proc.pid})")
+                                session = device.attach(proc.pid)
+                                actual_pid = proc.pid
+                                proc_name = target_app.name
+                                break
+                            # Try case-insensitive match
+                            elif proc.name.lower() == target_app.name.lower():
+                                print(f"[DEBUG] Found running process (case-insensitive): {proc.name} (PID: {proc.pid})")
+                                session = device.attach(proc.pid)
+                                actual_pid = proc.pid
+                                proc_name = target_app.name
+                                break
+                            # Try partial match (for shortened names)
+                            elif target_app.name.lower() in proc.name.lower() or proc.name.lower() in target_app.name.lower():
+                                print(f"[DEBUG] Found running process (partial): {proc.name} (PID: {proc.pid})")
+                                session = device.attach(proc.pid)
+                                actual_pid = proc.pid
+                                proc_name = target_app.name
+                                break
+
+                    # Last resort: try matching identifier directly with process name
+                    if session is None:
+                        print(f"[DEBUG] Last resort: checking if identifier matches any process name...")
+                        for proc in processes:
+                            if identifier.lower() in proc.name.lower() or proc.name.lower() in identifier.lower():
+                                print(f"[DEBUG] Found running process (identifier match): {proc.name} (PID: {proc.pid})")
+                                session = device.attach(proc.pid)
+                                actual_pid = proc.pid
+                                proc_name = proc.name
+                                break
+
+                except Exception as e:
+                    print(f"[DEBUG] Error during application lookup: {e}")
+
+        # If still not found, fail (don't launch)
+        if session is None:
+            error_msg = f"Process '{identifier}' is not running. Please launch the app first."
+            print(f"[DEBUG] {error_msg}")
+            return jsonify({
+                "status": "error",
+                "message": error_msg,
+                "pid": None,
+                "session_active": False
+            }), 404
+
+        # Successfully attached
+        session_id = f"session_{actual_pid}_{uuid.uuid4().hex[:8]}"
+        session_cache["pid"] = str(actual_pid)
+        session_cache["session"] = session
+        session_cache["session_id"] = session_id
+        session_cache["name"] = proc_name
+
+        payload = {
+            "attached": True,
+            "pid": str(actual_pid),
+            "name": proc_name,
+            "session_id": session_id,
+        }
+
+        # Emit socket events
+        print(f"[Socket] Emitting 'attached' for reconnect")
+        socketio.emit("attached", payload)
+        socketio.emit("attached", payload, namespace=FRIDA_NS, room=session_id)
+
+        emit_console(f"Reconnected to process {actual_pid}", only_namespace=FRIDA_NS, room=session_id)
+        emit_dashboard_log(f"Reconnected to process {actual_pid}", type="success")
+
+        return jsonify({
+            "status": "ok",
+            "session_id": session_id,
+            "pid": str(actual_pid),
+            "name": proc_name,
+            "message": f"Successfully reconnected to process {actual_pid}",
+            "session_active": True
+        })
+
+    except Exception as e:
+        error_msg = f"Failed to reconnect to process '{identifier}': {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        emit_console(error_msg, "error")
+        return jsonify({
+            "status": "error",
+            "message": error_msg,
+            "pid": None,
+            "session_active": False
+        }), 500
+
 
 @app.route('/api/detach/<string:pid>', methods=['POST'])
 def detach(pid):
@@ -1264,6 +1427,103 @@ def load_script(session_id):
     emit_frida_log(f"Loading script: {script_id}", type="info", session_id=session_id)
 
     return jsonify({"status": "ok"})
+
+
+@app.route('/api/inject-library-scripts', methods=['POST'])
+def inject_library_scripts():
+    """
+    Inject multiple library scripts into an already-attached process.
+    Does NOT spawn or relaunch - just injects into current session.
+    Combines multiple scripts into one to avoid conflicts.
+    """
+    data = request.get_json() or {}
+    script_ids = data.get("script_ids", [])
+
+    if not script_ids or not isinstance(script_ids, list):
+        return jsonify({"status": "error", "message": "script_ids required"}), 400
+
+    if not session_cache.get("session") or not session_cache.get("pid"):
+        return jsonify({"status": "error", "message": "No active session. Attach to a process first."}), 400
+
+    try:
+        session_id = session_cache.get("session_id")
+        db = ScriptDatabase()
+
+        # Collect all script codes
+        codes = []
+        script_names = []
+
+        for script_id in script_ids:
+            script = db.get_script_by_id(script_id)
+            if script and script.get('code'):
+                codes.append(script['code'])
+                script_names.append(script.get('name', f'Script {script_id}'))
+
+        if not codes:
+            return jsonify({"status": "error", "message": "No valid scripts found"}), 400
+
+        # Combine all scripts into one to avoid conflicts (same as spawn_and_inject_multiple)
+        if len(codes) == 1:
+            # Single script - inject directly
+            combined_code = codes[0]
+            emit_console(f"✅ Injecting: {script_names[0]}", only_namespace=FRIDA_NS, room=session_id)
+        else:
+            # Multiple scripts - combine them with sequential execution
+            print(f"[INJECT] Combining {len(codes)} scripts to prevent conflicts...")
+            emit_console(f"Combining {len(codes)} scripts...", type="info", only_namespace=FRIDA_NS, room=session_id)
+
+            combined_code = "(function() {\n"
+            combined_code += "    var scriptQueue = [];\n"
+            combined_code += "    var currentIndex = 0;\n\n"
+
+            for i, (code, name) in enumerate(zip(codes, script_names)):
+                # Wrap each script in a function to execute sequentially
+                combined_code += f"    // Script {i+1}: {name}\n"
+                combined_code += f"    scriptQueue.push(function() {{\n"
+                combined_code += f"        {code}\n"
+                combined_code += f"    }});\n\n"
+
+            # Execute scripts sequentially with delay
+            combined_code += """
+    function executeNext() {
+        if (currentIndex < scriptQueue.length) {
+            console.log('[Frida] Executing script ' + (currentIndex + 1) + '/' + scriptQueue.length);
+            try {
+                scriptQueue[currentIndex]();
+            } catch (e) {
+                console.error('[Frida] Script ' + (currentIndex + 1) + ' error: ' + e.message);
+            }
+            currentIndex++;
+            setTimeout(executeNext, 200);  // 200ms delay between scripts
+        }
+    }
+
+    setTimeout(executeNext, 100);  // Start after 100ms
+})();
+"""
+
+        # Inject the combined script
+        inject_script(combined_code)
+
+        message = f"Injected {len(codes)} script(s): {', '.join(script_names)}"
+        emit_console(message, type="success", only_namespace=FRIDA_NS, room=session_id)
+
+        return jsonify({
+            "status": "ok",
+            "message": message,
+            "loaded_count": len(codes),
+            "session_id": session_id,
+            "pid": session_cache.get("pid")
+        })
+
+    except Exception as e:
+        error_msg = f"Failed to inject scripts: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        session_id = session_cache.get("session_id")
+        if session_id:
+            emit_console(error_msg, type="error", only_namespace=FRIDA_NS, room=session_id)
+        return jsonify({"status": "error", "message": error_msg}), 500
+
 
 # Debug routes
 @app.route('/api/debug/processes')
