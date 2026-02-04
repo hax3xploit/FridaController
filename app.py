@@ -6,6 +6,7 @@ import subprocess
 import socket
 import shlex
 import uuid
+import frida
 from script_library import script_library_bp
 from database import init_script_db, seed_script_library, ScriptDatabase
 from flask import Flask, render_template, request, jsonify
@@ -1053,6 +1054,160 @@ def scripts_page():
     emit_frida_log("📂 Scripts page loaded", type="info")
     return render_template('scripts.html')
 
+
+
+@app.route('/api/frida-version', methods=['GET'])
+def get_frida_version():
+    """Get Frida client and server versions"""
+    try:
+        # Get client version (Python package)
+        client_version = frida.__version__
+
+        # Get server version from device (only if server is running)
+        server_version = "Not Connected"
+        server_status = "disconnected"
+
+        try:
+            # Create a FRESH device connection to avoid using cached connections
+            try:
+                print("[DEBUG] Getting fresh device connection...")
+                device = frida.get_usb_device(timeout=3)
+                print(f"[DEBUG] Device found: {device}")
+            except frida.TimedOutError:
+                print("[DEBUG] No USB device found (timeout)")
+                server_version = "Not Connected"
+                server_status = "disconnected"
+                return jsonify({
+                    "status": "ok",
+                    "client_version": client_version,
+                    "server_version": server_version,
+                    "server_status": server_status
+                })
+            except Exception as device_error:
+                print(f"[DEBUG] Failed to get device: {device_error}")
+                server_version = "Not Connected"
+                server_status = "disconnected"
+                return jsonify({
+                    "status": "ok",
+                    "client_version": client_version,
+                    "server_version": server_version,
+                    "server_status": server_status
+                })
+
+            # Test if server is responsive by trying to enumerate processes
+            # This is the most reliable way to check if server is actually working
+            try:
+                print("[DEBUG] Testing server connection...")
+                processes = device.enumerate_processes()
+                print(f"[DEBUG] Server is responsive! Got {len(processes)} processes")
+            except frida.ServerNotRunningError as e:
+                print(f"[DEBUG] Frida server not running: {e}")
+                server_version = "Not Running"
+                server_status = "not_running"
+                return jsonify({
+                    "status": "ok",
+                    "client_version": client_version,
+                    "server_version": server_version,
+                    "server_status": server_status
+                })
+            except Exception as conn_error:
+                print(f"[DEBUG] Server connection failed: {conn_error}")
+                print(f"[DEBUG] Error type: {type(conn_error).__name__}")
+                server_version = "Not Running"
+                server_status = "not_running"
+                return jsonify({
+                    "status": "ok",
+                    "client_version": client_version,
+                    "server_version": server_version,
+                    "server_status": server_status
+                })
+
+            # Double-check: verify frida-server process is actually running
+            # This catches cases where Frida returns cached data
+            try:
+                # Get the configured frida server binary name from settings
+                configured_path = get_frida_server_path()
+                server_binary = os.path.basename(configured_path) if configured_path else "frida-server"
+                print(f"[DEBUG] Looking for frida server process: {server_binary}")
+
+                ps_result = subprocess.run(
+                    ["adb", "shell", "ps -A"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+
+                # Check if we found the actual frida server process (not just frida.helper)
+                output = ps_result.stdout
+                found_server = False
+
+                for line in output.split('\n'):
+                    # Look for the configured binary name, or common frida server names
+                    # Exclude frida.helper and other helper processes
+                    if 'frida.helper' in line:
+                        continue
+
+                    if (server_binary in line or
+                        'frida-server' in line or
+                        line.strip().endswith('frida')):
+                        print(f"[DEBUG] Frida server process confirmed: {line.strip()}")
+                        found_server = True
+                        break
+
+                if not found_server:
+                    print(f"[DEBUG] Frida server process '{server_binary}' NOT found (only helper processes found)")
+                    server_version = "Not Running"
+                    server_status = "not_running"
+                    return jsonify({
+                        "status": "ok",
+                        "client_version": client_version,
+                        "server_version": server_version,
+                        "server_status": server_status
+                    })
+            except Exception as ps_error:
+                print(f"[DEBUG] Could not verify process (continuing anyway): {ps_error}")
+
+            # Query system parameters which includes server version
+            params = device.query_system_parameters()
+            print(f"[DEBUG] System parameters: {params}")
+            print(f"[DEBUG] Available keys: {list(params.keys())}")
+
+            # Try different possible keys for version
+            if 'frida.version' in params:
+                server_version = params['frida.version']
+                print(f"[DEBUG] Found version in 'frida.version': {server_version}")
+            elif 'version' in params:
+                server_version = params['version']
+                print(f"[DEBUG] Found version in 'version': {server_version}")
+            else:
+                # If we got params, server is running but version key not found
+                # Just use client version as fallback
+                server_version = client_version
+                print(f"[DEBUG] No version key found, using client version: {server_version}")
+
+            server_status = "connected"
+            print(f"[INFO] Frida server version: {server_version}")
+        except Exception as e:
+            import traceback
+            print(f"[WARNING] Could not get server version (server may not be running): {e}")
+            print(f"[DEBUG] Traceback:\n{traceback.format_exc()}")
+            server_version = "Not Running"
+            server_status = "not_running"
+
+        return jsonify({
+            "status": "ok",
+            "client_version": client_version,
+            "server_version": server_version,
+            "server_status": server_status
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "client_version": "Unknown",
+            "server_version": "Unknown",
+            "server_status": "error"
+        }), 500
 
 
 @app.route('/api/processes', methods=['GET'])
