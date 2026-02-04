@@ -1385,10 +1385,51 @@ function validateEditorScript() {
   window.validateEditorScript = validateEditorScript;
 
   // ---------------------------------------------
+  // Frida Version Display
+  // ---------------------------------------------
+  async function loadFridaVersions() {
+    try {
+      const response = await fetch('/api/frida-version');
+      const data = await response.json();
+
+      const clientVersionEl = document.getElementById('fridaClientVersionScripts');
+      const serverVersionEl = document.getElementById('fridaServerVersionScripts');
+
+      if (data.status === 'ok') {
+        if (clientVersionEl) clientVersionEl.textContent = data.client_version;
+
+        if (serverVersionEl) {
+          serverVersionEl.textContent = data.server_version;
+
+          // Update color based on server status
+          serverVersionEl.classList.remove('text-emerald-400', 'text-amber-400', 'text-red-400', 'text-slate-400');
+          if (data.server_status === 'connected') {
+            serverVersionEl.classList.add('text-emerald-400'); // Green if connected and running
+          } else if (data.server_status === 'not_running') {
+            serverVersionEl.classList.add('text-red-400'); // Red if not running
+          } else {
+            serverVersionEl.classList.add('text-slate-400'); // Gray if not connected
+          }
+        }
+      } else {
+        if (clientVersionEl) clientVersionEl.textContent = 'Unknown';
+        if (serverVersionEl) serverVersionEl.textContent = 'Unknown';
+      }
+    } catch (error) {
+      console.error('Failed to load Frida versions:', error);
+      const clientVersionEl = document.getElementById('fridaClientVersionScripts');
+      const serverVersionEl = document.getElementById('fridaServerVersionScripts');
+      if (clientVersionEl) clientVersionEl.textContent = 'Error';
+      if (serverVersionEl) serverVersionEl.textContent = 'Error';
+    }
+  }
+
+  // ---------------------------------------------
   // Lifecycle
   // ---------------------------------------------
   function kick() {
     refreshAttachmentFromBackend();
+    loadFridaVersions();
     // brief retries to beat late reflows after nav
     retryEnsureEditorInteractive(8, 150);
   }
