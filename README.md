@@ -22,7 +22,10 @@ A web-based graphical interface for Frida dynamic instrumentation toolkit, desig
 - Python 3.7+
 - ADB (Android Debug Bridge)
 - Frida and frida-tools
+  - **Recommended Version**: 16.5.1 (stable and tested)
+  - Install with: `pip install frida==16.5.1 frida-tools==12.5.0`
 - Rooted Android device with Frida server installed
+  - Download Frida server 16.5.1 for your device architecture from [Frida releases](https://github.com/frida/frida/releases/tag/16.5.1)
 
 ## Usage
 
