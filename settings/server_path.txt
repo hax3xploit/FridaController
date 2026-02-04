@@ -1,1 +1,1 @@
-/data/local/google-process
+/data/local/tmp/frida-server
