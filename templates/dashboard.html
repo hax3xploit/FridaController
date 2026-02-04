@@ -44,7 +44,10 @@
         <div>
           <p class="text-slate-400 text-sm font-medium">Connected Devices</p>
           <p class="text-2xl font-bold text-white mt-1" id="deviceCount">0</p>
-          <p class="text-sm text-slate-400 mt-1">Frida Server: <span id="fridaStatus" class="text-amber-400">Checking...</span></p>
+          <div class="text-xs text-slate-400 mt-2 space-y-0.5">
+            <p>Client: <span id="fridaClientVersion" class="text-emerald-400 font-mono">...</span></p>
+            <p>Server: <span id="fridaServerVersion" class="text-amber-400 font-mono">...</span></p>
+          </div>
         </div>
         <div class="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center">
           <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,15 +237,54 @@ function refreshDashboard() {
   loadDevices();
   loadProcesses();
   updateStats();
+  loadFridaVersions();
   showToast('Dashboard refreshed', 'success');
 }
 
+async function loadFridaVersions() {
+  try {
+    const response = await fetch('/api/frida-version');
+    const data = await response.json();
 
+    const clientVersionEl = document.getElementById('fridaClientVersion');
+    const serverVersionEl = document.getElementById('fridaServerVersion');
+
+    if (data.status === 'ok') {
+      if (clientVersionEl) clientVersionEl.textContent = data.client_version;
+
+      if (serverVersionEl) {
+        serverVersionEl.textContent = data.server_version;
+
+        // Update color based on server status
+        serverVersionEl.classList.remove('text-emerald-400', 'text-amber-400', 'text-red-400', 'text-slate-400');
+        if (data.server_status === 'connected') {
+          serverVersionEl.classList.add('text-emerald-400'); // Green if connected and running
+        } else if (data.server_status === 'not_running') {
+          serverVersionEl.classList.add('text-red-400'); // Red if not running
+        } else {
+          serverVersionEl.classList.add('text-slate-400'); // Gray if not connected
+        }
+      }
+    } else {
+      if (clientVersionEl) clientVersionEl.textContent = 'Unknown';
+      if (serverVersionEl) serverVersionEl.textContent = 'Unknown';
+    }
+  } catch (error) {
+    console.error('Failed to load Frida versions:', error);
+    const clientVersionEl = document.getElementById('fridaClientVersion');
+    const serverVersionEl = document.getElementById('fridaServerVersion');
+    if (clientVersionEl) clientVersionEl.textContent = 'Error';
+    if (serverVersionEl) serverVersionEl.textContent = 'Error';
+  }
+}
 
 // Update stats when page loads and periodically
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(updateStats, 1000);
   setInterval(updateStats, 5000);
+
+  // Load Frida versions on page load
+  loadFridaVersions();
 });
 </script>
 
