@@ -1,4 +1,4 @@
-# Frida GUI
+# FridaController
 
 A web-based graphical interface for Frida dynamic instrumentation toolkit, designed for Android reverse engineering and security research.
 
